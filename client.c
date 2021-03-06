@@ -3,11 +3,16 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
+#include <pthread.h>
 #define PORT 8080
 
+void *serverthread(void *parm);
+
+int sock = 0;
+pthread_t tid; /*Thread ID*/
 int main(int argc, char const *argv[])
 {
-	int sock = 0, valread;
+	int valread;
 	struct sockaddr_in serv_addr;
 	char buffer[1024] = {0};
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -31,21 +36,26 @@ int main(int argc, char const *argv[])
 		printf("\nConnection Failed \n");
 		return -1;
 	}
-	char buff[200];
+
+	pthread_create(&tid, NULL, serverthread, (void *)&sock);
 	char name[100];
 	printf("Please enter your name ");
 	scanf("%s", name);
 	send(sock, name, strlen(name), 0);
 	while (1)
 	{
-		printf("Send a message to the server ... ");
-		// scanf("%s", buff);
-		fgets(buff, sizeof(buff), stdin);
-		buff[strlen(buff) - 1] = '\0';
-		send(sock, buff, strlen(buff), 0);
-		printf("%s message sent\n", buff);
+		valread = read(sock, buffer, 1024);
+		printf("%s\n", buffer);
 	}
-	valread = read(sock, buffer, 1024);
-	printf("%s\n", buffer);
 	return 0;
+}
+void *serverthread(void *obj)
+{
+	char buff[200];
+	while (1)
+	{
+		scanf("%s", buff);
+		send(sock, buff, strlen(buff), 0);
+	}
+	pthread_exit(0);
 }
