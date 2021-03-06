@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
-#include "strmap.h" /*Create and maintain HashMap functions*/
 void *serverthread(void *parm);
 
 #define PORT 8080
@@ -15,12 +14,10 @@ void *serverthread(void *parm);
 pthread_mutex_t mut;  /* Mutex to prevent race conditions. */
 
 int size = 0;	 /* Number of users currently joined as players */
-StrMap *players; /*Name of HashMap<Player's name,IP address>*/
 int a[100];
 int tidIndex = 0;
 int main(int argc, char const *argv[])
 {
-	players = sm_new(100); /* Initialize hashmap */
 	int server_fd, new_socket, valread;
 	struct sockaddr_in address;
 	int opt = 1;
@@ -61,8 +58,10 @@ int main(int argc, char const *argv[])
 	}
 	while (1)
 	{
-		if ((new_socket = accept(server_fd, (struct sockaddr *)&address,
-								 (socklen_t *)&addrlen)) < 0)
+		if ((new_socket = accept(
+				 server_fd,
+				 (struct sockaddr *)&address,
+				 (socklen_t *)&addrlen)) < 0)
 		{
 			perror("accept");
 			exit(EXIT_FAILURE);
@@ -89,19 +88,6 @@ void *serverthread(void *parm)
 	char name[STRLEN + 1];	 /* Variable to store current client's name. */
 	recv(tsd, buf, MAXRCVLEN, 0);
 	strcpy(name, buf);
-	// if (sm_exists(players, name) == 0)
-	// {
-	// 	sm_put(players, name, ip);
-	// 	size++;
-	// 	strcpy(name, name);
-	// 	sprintf(buf, "Player %s added to the player's list\n", name);
-	// 	printf("Player %s added to the player's list\n", name);
-	// }
-	// else
-	// {
-	// 	sprintf(buf, "Player %s is already in the player's list\n", name);
-	// }
-	// send(tsd, buf, strlen(buf), 0);
 	while (len = recv(tsd, buf, MAXRCVLEN, 0))
 	{
 		buf[len] = '\0';
@@ -116,6 +102,7 @@ void *serverthread(void *parm)
 				send(a[i], buf, strlen(buf), 0);
 			}
 		}
+		strcpy(buf,"");
 	}
 	tidIndex--;
 	printf("Connection lost with %d\n", tsd);
