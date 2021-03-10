@@ -85,13 +85,13 @@ int setup_listener(int portno)
 	return sockfd;
 }
 
-void CLIENTS_GET(int lis_sockfd, int *cli_sockfd)
+void waitClient(int lis_sockfd, int *cli_sockfd)
 {
 	socklen_t clilen;
 	struct sockaddr_in serv_addr, cli_addr;
 
-	int num_conn = 0;
-	while (num_conn < 2)
+	int nConnections = 0;
+	while (nConnections < 2)
 	{
 		listen(lis_sockfd, 253 - nr_players);
 
@@ -99,24 +99,24 @@ void CLIENTS_GET(int lis_sockfd, int *cli_sockfd)
 
 		clilen = sizeof(cli_addr);
 
-		cli_sockfd[num_conn] = accept(lis_sockfd, (struct sockaddr *)&cli_addr, &clilen);
+		cli_sockfd[nConnections] = accept(lis_sockfd, (struct sockaddr *)&cli_addr, &clilen);
 
-		if (cli_sockfd[num_conn] < 0)
+		if (cli_sockfd[nConnections] < 0)
 			error("ERROR accepting a connection from a client.");
 
-		write(cli_sockfd[num_conn], &num_conn, sizeof(int));
+		write(cli_sockfd[nConnections], &nConnections, sizeof(int));
 
 		pthread_mutex_lock(&COUNT_MUTEX);
 		nr_players++;
 		printf("Number of players is now %d.\n", nr_players);
 		pthread_mutex_unlock(&COUNT_MUTEX);
 
-		if (num_conn == 0)
+		if (nConnections == 0)
 		{
 			write_client_msg(cli_sockfd[0], HOLD_CMD);
 		}
 
-		num_conn++;
+		nConnections++;
 	}
 }
 
@@ -136,7 +136,6 @@ int check_move(char board[][3], int move, int player_id)
 	return 0;
 }
 
-/* Updates the board with a new move. */
 void update_board(char board[][3], int move, int player_id)
 {
 	board[move / 3][move % 3] = player_id ? 'X' : 'O';
@@ -305,7 +304,7 @@ int main(int argc, char *argv[])
 			int *cli_sockfd = (int *)malloc(2 * sizeof(int));
 			memset(cli_sockfd, 0, 2 * sizeof(int));
 
-			CLIENTS_GET(lis_sockfd, cli_sockfd);
+			waitClient(lis_sockfd, cli_sockfd);
 
 			pthread_t thread;
 			int result = pthread_create(&thread, NULL, run_game, (void *)cli_sockfd);
