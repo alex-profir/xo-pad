@@ -31,9 +31,127 @@ int setup_listener(int portno)
     return sockfd;
 }
 
+int get_player_move(int cli_sockfd)
+{
+    write_client_msg(cli_sockfd, TURN_CMD);
+
+    return recv_int(cli_sockfd);
+}
+
+int check_move(char board[][3], int move, int player_id)
+{
+    if ((move == 9) || (board[move / 3][move % 3] == ' '))
+    {
+        return 1;
+    }
+    return 0;
+}
+
+/* Updates the board with a new move. */
+void update_board(char board[][3], int move, int player_id)
+{
+    board[move / 3][move % 3] = player_id ? 'X' : 'O';
+}
+
+void draw_board(char board[][3])
+{
+    printf(" %c | %c | %c \n", board[0][0], board[0][1], board[0][2]);
+    printf("-----------\n");
+    printf(" %c | %c | %c \n", board[1][0], board[1][1], board[1][2]);
+    printf("-----------\n");
+    printf(" %c | %c | %c \n", board[2][0], board[2][1], board[2][2]);
+}
+
 void *run_game(void *thread_data)
 {
-    printf("Separate thread for X USer");
+    int *cli_sockfd = (int *)thread_data; /* Client sockets. */
+    char board[3][3] = {{' ', ' ', ' '},  /* Game Board */
+                        {' ', ' ', ' '},
+                        {' ', ' ', ' '}};
+
+    printf("Game on!\n");
+
+    write_clients_msg(cli_sockfd, START_CMD);
+
+    draw_board(board);
+
+    int prev_player_turn = 1;
+    int player_turn = 0;
+    int game_over = 0;
+    int turn_count = 0;
+    while (!game_over)
+    {
+        if (prev_player_turn != player_turn)
+            write_client_msg(cli_sockfd[(player_turn + 1) % 2], WAIT_CMD);
+
+        int valid = 0;
+        int move = 0;
+        while (!valid)
+        {
+            move = get_player_move(cli_sockfd[player_turn]);
+            if (move == -1)
+                break;
+
+            printf("Player %d played position %d\n", player_turn, move);
+
+            valid = check_move(board, move, player_turn);
+            if (!valid)
+            {
+                printf("Move was invalid. Let's try this again...\n");
+                write_client_msg(cli_sockfd[player_turn], INVALID_CMD);
+            }
+        }
+
+        if (move == -1)
+        {
+            printf("Player disconnected.\n");
+            break;
+        }
+        else if (move == 9)
+        {
+            prev_player_turn = player_turn;
+            send_COUNT_OF_PLAYER(cli_sockfd[player_turn]);
+        }
+        else
+        {
+            update_board(board, move, player_turn);
+            send_update(cli_sockfd, move, player_turn);
+
+            draw_board(board);
+
+            game_over = check_board(board, move);
+
+            if (game_over == 1)
+            {
+                write_client_msg(cli_sockfd[player_turn], WIN_CMD);
+                write_client_msg(cli_sockfd[(player_turn + 1) % 2], LOSE_CMD);
+                printf("Player %d won.\n", player_turn);
+            }
+            else if (turn_count == 8)
+            {
+                printf("Draw.\n");
+                write_clients_msg(cli_sockfd, DRAW_CMD);
+                game_over = 1;
+            }
+
+            prev_player_turn = player_turn;
+            player_turn = (player_turn + 1) % 2;
+            turn_count++;
+        }
+    }
+
+    printf("Game over.\n");
+
+    close(cli_sockfd[0]);
+    close(cli_sockfd[1]);
+
+    pthread_mutex_lock(&COUNT_MUTEX);
+    nr_players-=2;
+    printf("Number of players is now %d.", nr_players);
+    pthread_mutex_unlock(&COUNT_MUTEX);
+
+    free(cli_sockfd);
+
     pthread_exit(NULL);
 }
 
