@@ -1,112 +1,60 @@
-#include <unistd.h>
-#include <stdio.h>
+#include <sys/types.h>
 #include <sys/socket.h>
-#include <stdlib.h>
 #include <netinet/in.h>
-#include <string.h>
 #include <pthread.h>
-void *serverthread(void *parm);
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-#define PORT 8080
-#define QLEN 10		  /* size of request queue */
-#define MAXRCVLEN 200 /*Maximum size of buffer*/
-#define STRLEN 200	  /*Maximum String length*/
-pthread_mutex_t mut;  /* Mutex to prevent race conditions. */
-
-int size = 0;	 /* Number of users currently joined as players */
-int a[100];
-int tidIndex = 0;
-int main(int argc, char const *argv[])
+int nr_players = 0;
+pthread_mutex_t COUNT_MUTEX;
+int setup_listener(int portno)
 {
-	int server_fd, new_socket, valread;
-	struct sockaddr_in address;
-	int opt = 1;
-	int addrlen = sizeof(address);
-	char buffer[1024] = {0};
-	char *hello = "Hello from server";
-	pthread_t tid; /* variable to hold thread ID */
+    int sockfd;
+    struct sockaddr_in serv_addr;
 
-	// Creating socket file descriptor
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-	{
-		perror("socket failed");
-		exit(EXIT_FAILURE);
-	}
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+        error("ERROR opening listener socket.");
 
-	// Forcefully attaching socket to the port 8080
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
-				   &opt, sizeof(opt)))
-	{
-		perror("setsockopt");
-		exit(EXIT_FAILURE);
-	}
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(PORT);
+    memset(&serv_addr, 0, sizeof(serv_addr));
 
-	// Forcefully attaching socket to the port 8080
-	if (bind(server_fd, (struct sockaddr *)&address,
-			 sizeof(address)) < 0)
-	{
-		perror("bind failed");
-		exit(EXIT_FAILURE);
-	}
-	if (listen(server_fd, 3) < 0)
-	{
-		perror("listen");
-		exit(EXIT_FAILURE);
-	}
-	while (1)
-	{
-		if ((new_socket = accept(
-				 server_fd,
-				 (struct sockaddr *)&address,
-				 (socklen_t *)&addrlen)) < 0)
-		{
-			perror("accept");
-			exit(EXIT_FAILURE);
-		}
-		pthread_create(&tid, NULL, serverthread, (void *)new_socket);
-	}
-	close(server_fd);
-	return 0;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(portno);
+
+    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        error("ERROR binding listener socket.");
+
+    printf("Server started on port : %d\n", atoi(portno));
+    return sockfd;
 }
-void *serverthread(void *parm)
-{
-	int tsd, len;
-	tsd = (int)parm; /*Thread Socket descriptor*/
 
-	char ip[INET_ADDRSTRLEN]; /*Char array to store client's IP address*/
-	struct sockaddr_in peeraddr;
-	socklen_t peeraddrlen = sizeof(peeraddr);
-	getpeername(tsd, &peeraddr, &peeraddrlen);												 /*Retrives address of the peer to which a socket is connected*/
-	inet_ntop(AF_INET, &(peeraddr.sin_addr), ip, INET_ADDRSTRLEN); /*Binary to text string*/ /*Retriving IP addrees of client and converting 
-	it to text and storing it in IP char array*/
-	a[tidIndex++] = tsd;
-	printf("Connected with %d, ip is %s\n", tsd, ip);
-	char buf[MAXRCVLEN + 1]; /* buffer for data exchange */
-	char name[STRLEN + 1];	 /* Variable to store current client's name. */
-	recv(tsd, buf, MAXRCVLEN, 0);
-	strcpy(name, buf);
-	while (len = recv(tsd, buf, MAXRCVLEN, 0))
-	{
-		buf[len] = '\0';
-		char arg1[STRLEN]; //, arg2[STRLEN];
-		int n = sscanf(buf, "%s", arg1);
-		sprintf(buf, "%s:%s", name, arg1);
-		printf("%s\n", buf);
-		for (int i = 0; i < tidIndex; i++)
-		{
-			if (a[i] != tsd)
-			{
-				send(a[i], buf, strlen(buf), 0);
-			}
-		}
-		strcpy(buf,"");
-	}
-	tidIndex--;
-	printf("Connection lost with %d\n", tsd);
-	pthread_mutex_unlock(&mut);
-	close(tsd);
-	pthread_exit(0);
+void *run_game(void *thread_data)
+{
+    printf("Separate thread for X USer");
+    pthread_exit(NULL);
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 2)
+    {
+        fprintf(stderr, "ERROR, no port provided\n");
+        exit(1);
+    }
+
+    int lis_sockfd = setup_listener(atoi(argv[1]));
+
+    while (1)
+    {
+
+        int result = pthread_create(&thread, NULL, run_game, (void *)cli_sockfd);
+    }
+
+    close(lis_sockfd);
+
+    pthread_mutex_destroy(&COUNT_MUTEX);
+    pthread_exit(NULL);
 }
